@@ -44,4 +44,4 @@ echo "Starting Docker service..."
 systemctl start docker
 systemctl enable docker
 echo "Docker service started and enabled to start on boot."
-hostnamectl set-hostname prodtest-server
+hostnamectl set-hostname jenkins-server
