@@ -1,6 +1,6 @@
 provider "aws" {
   region = "eu-west-1"
-  profile = "pet-adoption"
+  # profile = "pet-adoption"
 }
 
 locals {
