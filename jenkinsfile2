@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_IMAGE_NAME = 'softnet/user-service'
+        CONTAINER_NAME = 'user-service'
+    }
+    stages {
+        stage('checkout') {
+            steps {
+                git branch: 'production', credentialsId: 'softnet-dev-test', url: 'https://chisom_amalu@bitbucket.org/softnet-dev/birs-user-service.git'
+            }
+        }
+        stage('Deploy Into Docker Host') {
+            steps {
+                sshagent(['jenkins-key']) {
+                    sh """
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "mkdir /home/ubuntu/birs-service-ci-cd"
+                        scp -o strictHostKeyChecking=no -r /var/lib/jenkins/workspace/birs-service-ci-cd/* ubuntu@54.198.83.33:/home/ubuntu/birs-service-ci-cd
+                       """
+                }
+            }
+        }
+        stage('Stop and Remove Custom User Service') {
+            steps {
+                sshagent(['jenkins-key']) {
+                    sh """
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "docker stop ${CONTAINER_NAME}"
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "docker rm ${CONTAINER_NAME}"
+                       """
+                }
+            }
+        }
+        stage('Remove Custom User Service Image') {
+            steps {
+                sshagent(['jenkins-key']) {
+                    sh """
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "docker rmi ${DOCKER_IMAGE_NAME}"
+                       """
+                }
+            }
+        }
+        stage('Build Custom User Service Image') {
+            steps {
+                sshagent(['jenkins-key']) {
+                    sh """
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "docker build -t ${DOCKER_IMAGE_NAME} ./birs-service-ci-cd"
+                       """
+                }
+            }
+        }
+        stage('Start Custom User Service') {
+            steps {
+                sshagent(['jenkins-key']) {
+                    sh """
+                        ssh -t -t ubuntu@54.198.83.33 -o strictHostKeyChecking=no "docker run -d -p 9004:9004 --network=mynetwork --name ${CONTAINER_NAME} \
+                            -e SERVER_PORT=9004 \
+                            -e POSTGRES_USER=db_admin \
+                            -e DATABASE_NAME=birs_user_service-test \
+                            -e PORT=9004 \
+                            -e DATABASE_HOST=birs-prod-db.c8ejzpkrvqyk.eu-central-1.rds.amazonaws.com \
+                            -e DATABASE_PORT=5432 \
+                            -e POSTGRES_PASSWORD=kghRdRaFT9ttGyblKLEbtkj3xxjOtqB \
+                            -e POSTGRES_DB=birs_data \
+                            -e DATABASE_URL=jdbc:postgresql://birs-prod-db.c8ejzpkrvqyk.eu-central-1.rds.amazonaws.com:5432/birs_data \
+                            -e APPLICATION_NAME=user-service \
+                            -e DATABASE_USER=db_admin \
+                            ${DOCKER_IMAGE_NAME}.${BUILD_NUMBER}"
+                    """
+                }
+            }
+        }
+    }
+}
